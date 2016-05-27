@@ -44,14 +44,30 @@
 		java.util.Date,
 		java.util.Iterator,
 		java.util.List,
-		java.util.Map" %>
+		java.util.Map,
+		java.io.InputStream,
+		java.util.Properties" %>
+<%@ page import="org.opennms.netmgt.config.RTCConfigFactory" %>
 
 <%!
+	private int m_availablityHours = 24; //Default to 24 hours if unable to read from file
 
     CategoryList m_category_list;
 
     public void init() throws ServletException {
 	m_category_list = new CategoryList();
+		try {
+			InputStream input = getServletContext().getResourceAsStream("/WEB-INF/availability.properties");
+			Properties properties = new Properties();
+			properties.load(input);
+			String prop = properties.getProperty("availability_hours");
+			m_availablityHours = Integer.parseInt(prop);
+			if(m_availablityHours < 1) {
+				m_availablityHours = 24;
+			}
+		}
+		catch (Exception e) {
+		}
     }
 
 	// Creates a link to the rtc/category.jsp according to the selected outagesType.
@@ -77,7 +93,7 @@
 	long earliestUpdate = m_category_list.getEarliestUpdate(categoryData);
 	boolean opennmsDisconnect = m_category_list.isDisconnected(earliestUpdate);
 
-	String titleName = "Availability Over the Past 24 Hours";
+	String titleName = "Availability Over the Past " + m_availablityHours + " Hours";
 	if (opennmsDisconnect) {
 		titleName = "Waiting for availability data. ";
 		if (earliestUpdate > 0) {

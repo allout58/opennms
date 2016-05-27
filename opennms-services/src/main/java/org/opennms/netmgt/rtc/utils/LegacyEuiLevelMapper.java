@@ -81,7 +81,7 @@ public class LegacyEuiLevelMapper {
         long curTime = curDate.getTime();
 
         // get the rolling window
-        long rWindow = 24L * 60L * 60L * 1000L;
+        long rWindow = m_dataMgr.getRollingWindow();//48L * 60L * 60L * 1000L;
 
         LOG.debug("curdate: {}", curDate);
 

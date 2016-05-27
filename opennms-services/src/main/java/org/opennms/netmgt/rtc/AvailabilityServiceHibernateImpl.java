@@ -38,6 +38,7 @@ import org.opennms.core.criteria.restrictions.AllRestriction;
 import org.opennms.core.criteria.restrictions.GtRestriction;
 import org.opennms.core.criteria.restrictions.LeRestriction;
 import org.opennms.core.criteria.restrictions.NullRestriction;
+import org.opennms.netmgt.config.RTCConfigFactory;
 import org.opennms.netmgt.dao.api.MonitoredServiceDao;
 import org.opennms.netmgt.dao.api.OutageDao;
 import org.opennms.netmgt.events.api.EventConstants;
@@ -78,6 +79,9 @@ public class AvailabilityServiceHibernateImpl implements AvailabilityService {
 	@Autowired
 	private OutageDao m_outageDao;
 
+    @Autowired
+    private RTCConfigFactory m_configFactory;
+
     /**
      * Builds a map of configured categories, keyed by label.
      *
@@ -109,7 +113,7 @@ public class AvailabilityServiceHibernateImpl implements AvailabilityService {
         final long curTime = curDate.getTime();
 
         // get the rolling window
-        final long rWindow = 24L * 60L * 60L * 1000L;
+        final long rWindow = m_configFactory.getRollingWindow();//48L * 60L * 60L * 1000L;
 
         LOG.debug("Retrieving availability statistics for {} with current date: {} and rolling window: {}",
                     category.getLabel(), curDate, rWindow);

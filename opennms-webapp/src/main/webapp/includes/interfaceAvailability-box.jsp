@@ -43,7 +43,9 @@
 	import="org.opennms.web.category.*,
 		org.opennms.core.utils.WebSecurityUtils,
 		org.opennms.web.element.*,
-		java.util.Date
+		java.util.*,
+		java.lang.reflect.*,
+		java.io.InputStream
 	"
 %>
 <%@ page import="org.opennms.web.outage.Outage" %>
@@ -52,6 +54,8 @@
 <%@taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
 
 <%!
+    protected int m_availablityHours = 24; //Default to 24 hours if unable to read from file
+
     protected CategoryModel model;
     
     protected double normalThreshold;
@@ -72,11 +76,29 @@
         }
         catch( org.exolab.castor.xml.ValidationException e ) {
             throw new ServletException("Could not instantiate the CategoryModel", e);
-        }        
+        }
+
+        try {
+            InputStream input = getServletContext().getResourceAsStream("/WEB-INF/availability.properties");
+            Properties properties = new Properties();
+            properties.load(input);
+            String prop = properties.getProperty("availability_hours");
+            m_availablityHours = Integer.parseInt(prop);
+            if(m_availablityHours < 1) {
+                m_availablityHours = 24;
+            }
+        }
+        catch (Exception e) {
+        }
     }
 %>
 
 <%
+    Calendar cal = new GregorianCalendar();
+    Date now = cal.getTime();
+    cal.add(Calendar.HOUR_OF_DAY, -m_availablityHours);
+    Date yesterday = cal.getTime();
+
     String requestNode = request.getParameter("node");
     String ipAddr = request.getParameter("ipAddr");
     String overallStatusString = request.getParameter("interfaceStatus");
@@ -93,6 +115,18 @@
 
     //get the interface's overall service level availiability for the last 24 hrs
     double overallRtcValue = this.model.getInterfaceAvailability(nodeId, ipAddr);
+    try {
+        Class[] clazzes = new Class [] { Integer.TYPE, String.class, Date.class, Date.class };
+        Class c = CategoryModel.class;
+        Method nodeAvailMethod = c.getDeclaredMethod("getInterfaceAvailability", clazzes);
+        nodeAvailMethod.setAccessible(true);
+        Double o = (Double) nodeAvailMethod.invoke(null, nodeId, ipAddr, yesterday, now);
+        overallRtcValue = o.doubleValue();
+    }
+    catch (Throwable e) {
+        e.printStackTrace();
+    }
+
 
     if (services.length < 1) {
     	overallStatusString = "Not Monitored";
@@ -102,7 +136,7 @@
  	}
 
     long timelineEnd = new Date().getTime() / 1000;
-    long timelineStart = timelineEnd - 3600 * 24;
+    long timelineStart = timelineEnd - 3600 * m_availablityHours;
     String timelineHeaderUrl = "/opennms/rest/timeline/header/" + timelineStart + "/" + timelineEnd + "/";
     String timelineEmptyUrl = "/opennms/rest/timeline/empty/" + timelineStart + "/" + timelineEnd + "/";
 
@@ -148,6 +182,19 @@
 
       if( service.isManaged() ) {
         svcValue = CategoryModel.getServiceAvailability(nodeId, ipAddr, service.getServiceId());
+
+        try {
+            Class[] clazzes = new Class [] { Integer.TYPE, String.class, Integer.TYPE, Date.class, Date.class };
+            Class c = CategoryModel.class;
+            Method nodeAvailMethod = c.getDeclaredMethod("getServiceAvailability", clazzes);
+            nodeAvailMethod.setAccessible(true);
+            Double o = (Double) nodeAvailMethod.invoke(null, nodeId, ipAddr, service.getServiceId(), yesterday, now);
+            svcValue = o.doubleValue();
+        }
+        catch (Throwable e) {
+            e.printStackTrace();
+        }
+
         serviceClass = CategoryUtil.getCategoryClass(this.normalThreshold, this.warningThreshold, svcValue);
       } else {
         serviceClass = "Indeterminate";

@@ -48,12 +48,17 @@
 		java.util.*,
         org.springframework.util.Assert,
         org.opennms.web.servlet.MissingParameterException,
-        org.opennms.core.utils.WebSecurityUtils,org.opennms.web.outage.*,java.util.*"
+        org.opennms.core.utils.WebSecurityUtils,
+        org.opennms.web.outage.*,
+        java.lang.reflect.*,
+        java.io.InputStream"
 %>
 <%@taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
 <%@taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
 
 <%!
+    private int m_availablityHours = 24; //Default to 24 hours if unable to read from file
+
     private CategoryModel m_model;
     
     private double m_normalThreshold;
@@ -68,6 +73,19 @@
         
         m_normalThreshold = m_model.getCategoryNormalThreshold(CategoryModel.OVERALL_AVAILABILITY_CATEGORY);
         m_warningThreshold = m_model.getCategoryWarningThreshold(CategoryModel.OVERALL_AVAILABILITY_CATEGORY);
+
+        try {
+            InputStream input = getServletContext().getResourceAsStream("/WEB-INF/availability.properties");
+            Properties properties = new Properties();
+            properties.load(input);
+            String prop = properties.getProperty("availability_hours");
+            m_availablityHours = Integer.parseInt(prop);
+            if(m_availablityHours < 1) {
+                m_availablityHours = 24;
+            }
+        }
+        catch (Exception e) {
+        }
     }
 %>
 
@@ -80,14 +98,31 @@
 
     int nodeId = WebSecurityUtils.safeParseInt(nodeIdString);
 
-    //get the node's overall service level availiability for the last 24 hrs
+    //get the node's overall service level availiability for the last `m_availablityHours` hrs
+    Calendar cal = new GregorianCalendar();
+    Date now = cal.getTime();
+    cal.add(Calendar.HOUR_OF_DAY, -m_availablityHours);
+    Date yesterday = cal.getTime();
+
     double overallRtcValue = m_model.getNodeAvailability(nodeId);
+    try {
+        Class[] clazzes = new Class [] { Integer.TYPE, Date.class, Date.class };
+        Class c = CategoryModel.class;
+        Method nodeAvailMethod = c.getDeclaredMethod("getNodeAvailability", clazzes);
+        nodeAvailMethod.setAccessible(true);
+        Double o = (Double) nodeAvailMethod.invoke(null, nodeId, yesterday, now);
+        overallRtcValue = o.doubleValue();
+    }
+    catch (Throwable e) {
+        e.printStackTrace();
+    }
+
 
     String availClass;
     String availValue;
 
     long timelineEnd = new Date().getTime() / 1000;
-    long timelineStart = timelineEnd - 3600 * 24;
+    long timelineStart = timelineEnd - 3600 * m_availablityHours;
 
     String timelineHeaderUrl = "/opennms/rest/timeline/header/" + timelineStart + "/" + timelineEnd + "/";
     String timelineEmptyUrl = "/opennms/rest/timeline/empty/" + timelineStart + "/" + timelineEnd + "/" ;
@@ -110,7 +145,7 @@
     availValue = CategoryUtil.formatValue(overallRtcValue) + "%";
   }
 %>
-    <td class="severity-<%= availClass %> nobright" colspan="3">Availability (last 24 hours)</td>
+    <td class="severity-<%= availClass %> nobright" colspan="3">Availability (last <%= m_availablityHours %> hours)</td>
     <td colspan="1" class="severity-<%= availClass %> nobright"><%= availValue %></td>
 
   </tr>
@@ -128,7 +163,19 @@
           </c:url>
           <% if( intf.isManaged() ) { %>
             <%-- interface is managed --%>
-            <% double intfValue = m_model.getInterfaceAvailability(nodeId, ipAddr); %>                              
+            <% double intfValue = m_model.getInterfaceAvailability(nodeId, ipAddr);
+             try {
+                 Class[] clazzes = new Class [] { Integer.TYPE, String.class, Date.class, Date.class };
+                 Class c = CategoryModel.class;
+                 Method nodeAvailMethod = c.getDeclaredMethod("getInterfaceAvailability", clazzes);
+                 nodeAvailMethod.setAccessible(true);
+                 Double o = (Double) nodeAvailMethod.invoke(null, nodeId, ipAddr, yesterday, now);
+                 intfValue = o.doubleValue();
+             }
+             catch (Throwable e) {
+                 e.printStackTrace();
+             }
+                         %>
             <% Service[] svcs = ElementUtil.getServicesOnInterface(nodeId,ipAddr,getServletContext()); %>
 
             <tr>
@@ -167,6 +214,18 @@
 
                 if (service.isManaged()) {
                   double svcValue = CategoryModel.getServiceAvailability(nodeId, ipAddr, service.getServiceId());
+                  try {
+                      Class[] clazzes = new Class [] { Integer.TYPE, String.class, Integer.TYPE, Date.class, Date.class };
+                      Class c = CategoryModel.class;
+                      Method nodeAvailMethod = c.getDeclaredMethod("getServiceAvailability", clazzes);
+                      nodeAvailMethod.setAccessible(true);
+                      Double o = (Double) nodeAvailMethod.invoke(null, nodeId, ipAddr, service.getServiceId(), yesterday, now);
+                      svcValue = o.doubleValue();
+                  }
+                  catch (Throwable e) {
+                      e.printStackTrace();
+                  }
+
                   availClass = CategoryUtil.getCategoryClass(m_normalThreshold, m_warningThreshold, svcValue);
                   availValue = CategoryUtil.formatValue(svcValue) + "%";
 

@@ -267,7 +267,7 @@ public class DataManager implements AvailabilityService, InitializingBean {
     			" order by " + 
     			"       ifsvc.nodeid, ifsvc.ipAddr, ifsvc.serviceid, o.ifLostService ";
     	
-		long window = (new Date()).getTime() - (24L * 60L * 60L * 1000L);
+		long window = (new Date()).getTime() - m_configFactory.getRollingWindow();
 		Timestamp windowTS = new Timestamp(window);
 
     	RowCallbackHandler rowHandler = new RTCNodeProcessor();
@@ -707,4 +707,8 @@ public class DataManager implements AvailabilityService, InitializingBean {
     public EuiLevel getEuiLevel(RTCCategory category) {
         return m_euiMapper.convertToEuiLevelXML(category);
     }
+
+	public long getRollingWindow() {
+		return m_configFactory.getRollingWindow();
+	}
 }

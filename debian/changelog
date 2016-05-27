@@ -1,3 +1,9 @@
+opennms (18.0.0-2) stable; urgency=low
+
+  * New release. This release allows the availability window to be changed.
+
+ -- James Hollowell <jhollowell@swampfoxinc.com> Fri, 27 May 2016 10:36:45 -0500
+
 opennms (18.0.0-1) stable; urgency=low
 
   * New stable release.  This release contains a large number of bug fixes and
